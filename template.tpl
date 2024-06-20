@@ -16,10 +16,10 @@ ___INFO___
   "displayName": "Matomo Analytics",
   "brand": {
     "id": "brand_dummy",
-    "displayName": "data-marketing-school",
+    "displayName": "",
     "thumbnail": "data:image/png;base64,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"
   },
-  "description": "",
+  "description": "Matomo Analytics server tag template.",
   "containerContexts": [
     "SERVER"
   ]
@@ -30,10 +30,17 @@ ___TEMPLATE_PARAMETERS___
 
 [
   {
+    "type": "CHECKBOX",
+    "name": "matomoClient",
+    "checkboxText": "I use Matomo client",
+    "simpleValueType": true
+  },
+  {
     "type": "TEXT",
     "name": "instanceUrl",
-    "displayName": "Instance URL",
+    "displayName": "Matomo Instance URL",
     "simpleValueType": true,
+    "valueHint": "https://website.matomo.cloud",
     "valueValidators": [
       {
         "type": "NON_EMPTY"
@@ -44,8 +51,7 @@ ___TEMPLATE_PARAMETERS___
           "^https://.*"
         ]
       }
-    ],
-    "valueHint": "https://website.matomo.cloud"
+    ]
   },
   {
     "type": "TEXT",
@@ -71,6 +77,32 @@ ___TEMPLATE_PARAMETERS___
       },
       {
         "type": "POSITIVE_NUMBER"
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
+    ]
+  },
+  {
+    "type": "TEXT",
+    "name": "overrideIdSite",
+    "displayName": "Override Site ID",
+    "simpleValueType": true,
+    "valueHint": "1",
+    "valueValidators": [
+      {
+        "type": "POSITIVE_NUMBER"
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": true,
+        "type": "EQUALS"
       }
     ]
   },
@@ -304,6 +336,13 @@ ___TEMPLATE_PARAMETERS___
         ],
         "valueHint": "6"
       }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
     ]
   },
   {
@@ -519,6 +558,13 @@ ___TEMPLATE_PARAMETERS___
         ],
         "help": "Default: eventData.discount"
       }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
     ]
   },
   {
@@ -532,6 +578,7 @@ ___TEMPLATE_PARAMETERS___
         "name": "contentTrackingEnabled",
         "checkboxText": "Enable Content Tracking",
         "simpleValueType": true,
+        "alwaysInSummary": true,
         "enablingConditions": [
           {
             "paramName": "ecommerceEnabled",
@@ -623,6 +670,13 @@ ___TEMPLATE_PARAMETERS___
           }
         ]
       }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
     ]
   },
   {
@@ -659,6 +713,13 @@ ___TEMPLATE_PARAMETERS___
         ],
         "newRowButtonText": "New custom dimension"
       }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
+      }
     ]
   },
   {
@@ -673,6 +734,13 @@ ___TEMPLATE_PARAMETERS___
         "checkboxText": "Enable heartbeat request",
         "simpleValueType": true,
         "help": "If enabled, the request will be a Heartbeat request which will not track any new activity (such as a new visit, new action or new goal). The heartbeat request will only update the visit\u0027s total time to provide accurate \"Visit duration\" metric when this parameter is set."
+      }
+    ],
+    "enablingConditions": [
+      {
+        "paramName": "matomoClient",
+        "paramValue": false,
+        "type": "EQUALS"
       }
     ]
   }
@@ -692,7 +760,9 @@ const generateRandom = require("generateRandom");
 const sha256Sync = require("sha256Sync");
 const eventData = getAllEventData();
 
-sendHttpRequest(data.instanceUrl + "/matomo.php" + getMatomoQueryParams(), {
+let instanceUrl = data.instanceUrl + '/matomo.php';
+
+sendHttpRequest(data.matomoClient ? instanceUrl + getMatomoQueryParamsFromMtm() : instanceUrl + getMatomoQueryParamsFromGa(), {
     method: "POST"
   })
   .then((response) => {
@@ -706,78 +776,110 @@ sendHttpRequest(data.instanceUrl + "/matomo.php" + getMatomoQueryParams(), {
      data.gtmOnFailure();
   });
 
-function getMatomoQueryParams() {
-  var matomoQueryParams = {
+function getMatomoQueryParamsFromMtm(){
+  let matomoQueryParams = eventData;
+  matomoQueryParams.token_auth = data.tokenAuth;
+  if(data.overrideIdSite) {
+    matomoQueryParams.idsite = data.overrideIdSite;
+  }
+  matomoQueryParams.event_name = null;
+  return serialize(matomoQueryParams);
+}
+
+function getMatomoQueryParamsFromGa() {
+  let matomoQueryParams = {
 		//Required parameters
-		idsite: data.idSite,
+		idsite: data.idSite || eventData.idsite,
 		rec: eventData.rec || 1,
 
 		//Recommended parameters
-        action_name: eventData.page_title,
-		url: eventData.page_location,
-		_id: generateVisitorId(),
-		rand: generateRandom(0, 100000000),
+        action_name: eventData.page_title || eventData.action_name,
+		url: eventData.page_location || eventData.url,
+		_id: eventData._id || generateVisitorId(),
+		rand: eventData.rand || generateRandom(0, 100000000),
 		apiv: 1,
 
 		//Optional user info
-		urlref: eventData.page_referrer,
-		res: eventData.screen_resolution,
-		h: null,
-		m: null,
-		s: null,
+		urlref: eventData.page_referrer || eventData.urlref,
+		res: eventData.screen_resolution || eventData.res,
+		h: eventData.h || null,
+		m: eventData.m || null,
+		s: eventData.s || null,
 		cookie: 1,
-		ua: eventData.user_agent,
-		uadata: eventData.client_hints,
-		lang: eventData.language,
-		uid: eventData.user_id,
-		cid: generateVisitorId(),
-		new_visit: 0,
+		ua: eventData.ua || eventData.user_agent,
+		uadata: eventData.uadata || eventData.client_hints,
+		lang: eventData.lang || eventData.language,
+		uid: eventData.uid || eventData.user_id,
+		cid: eventData.cid || generateVisitorId(),
+		new_visit: eventData.new_visit || 0,
+    
+        //Ecommerce
+        idgoal: eventData.idgoal,
+        ec_items: eventData.ec_items,
+        revenue: eventData.revenue,
+        ec_id: eventData.ec_id,
+        ec_st: eventData.ec_st,
+        ec_tx: eventData.ec_tx,
+        ec_sh: eventData.ec_sh,
+        ec_dt: eventData.ec_dt,
 
 		//Optional Acquisition Channel Attribution
-		_rcn: null,
-		_rck: null,
+		_rcn: eventData._rcn,
+		_rck: eventData._rck,
 
 		//Optional action info
-		cvar: null,
-		link: null,
-		download: null,
-		pv_id: null,
-		cs: null,
+		cvar: eventData.cvar,
+		link: eventData.link,
+		download: eventData.download,
+		pv_id: eventData.pv_id,
+		cs: eventData.cs,
+        search: eventData.search,
+	    search_cat: eventData.search_cat,
+	    search_count: eventData.search_count,
 
 		//Optional page performance
-		pf_net: null,
-		pf_srv: null,
-		pf_tfr: null,
-		pf_dm1: null,
-		pf_dm2: null,
-		pf_onl: null,
+		pf_net: eventData.pf_net,
+		pf_srv: eventData.pf_srv,
+		pf_tfr: eventData.pf_tfr,
+		pf_dm1: eventData.pf_dm1,
+		pf_dm2: eventData.pf_dm2,
+		pf_onl: eventData.pf_onl,
 
 
 		//Other parameters
 		token_auth: data.tokenAuth,
-		cip: eventData.ip_override,
+		cip: eventData.cip || eventData.ip_override,
 		cdt: null,
 		country: null,
 		region: null,
 		city: null,
 		lat: null,
 		long: null,
-        send_image: 0,
+        send_image: eventData.send_image || 0,
+    
+        // plugins
+        pdf: eventData.pdf,
+        qt: eventData.qt,
+        realp: eventData.realp,
+        wma: eventData.wma,
+        fla: eventData.fla,
+        java: eventData.java,
+        ag: eventData.ag,
 
 		//Media Analytics parameters
-		ma_id: null, 
-		ma_ti: null,
-		ma_re: null,
-		ma_mt: null,
-		ma_pn: null,
-		ma_st: null,
-		ma_le: null,
-		ma_ps: null,
-		ma_ttp: null,
-		ma_w: null,
-		ma_h: null,
-		ma_fs: null,
-		ma_se: null,
+		ma_id: eventData.ma_id, 
+		ma_ti: eventData.ma_ti,
+		ma_re: eventData.ma_re,
+		ma_mt: eventData.ma_mt,
+		ma_pn: eventData.ma_pn,
+		ma_st: eventData.ma_st,
+		ma_le: eventData.ma_le,
+		ma_ps: eventData.ma_ps,
+		ma_ttp: eventData.ma_ttp,
+		ma_w: eventData.ma_w,
+		ma_h: eventData.ma_h,
+		ma_fs: eventData.ma_fs,
+		ma_se: eventData.ma_se,
 
 	};
   
@@ -861,12 +963,16 @@ function getMatomoQueryParams() {
 }
 
 function generateVisitorId() {
-	return sha256Sync(eventData.client_id.split('.').join(''))
+    let visitorId;
+    if(eventData.client_id) {
+      visitorId = sha256Sync(eventData.client_id.split('.').join(''))
         .split(']')
         .join('')
         .split('[')
         .join('')
         .slice(0, 16);
+    }
+    return visitorId;
 }
 
 function getEcommerceItems() {
@@ -976,6 +1082,6 @@ scenarios: []
 
 ___NOTES___
 
-Created on 18/05/2024, 20:01:07
+Created on 20/05/2024, 16:34:06
 
 
