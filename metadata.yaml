@@ -1,5 +1,7 @@
 homepage: "https://www.data-marketing-school.com"
 versions:
+  - sha: 316f1ec087e6a9bdb94de517a746471270d76cce
+    changeNotes: Improve interface
   - sha: 2308fd8a90ae89644d55798e973ce335f1b53fd7
     changeNotes: Add support for Matomo client
   - sha: 60327b0ac9e4773769e84ad0b4964de156643a1f
