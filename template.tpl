@@ -5,7 +5,7 @@
   "id": "cvt_temp_public_id",
   "version": 1,
   "securityGroups": [],
-  "displayName": "Matomo Analytics 2",
+  "displayName": "Matomo Analytics",
   "brand": {
     "id": "github.com_data-marketing-school",
     "displayName": "data-marketing-school",
