@@ -1,6 +1,8 @@
 homepage: "https://data-marketing-school.com/en"
 documentation: "https://data-marketing-school.com/en/blog/google-tag-manager/matomo-server-side/"
 versions:
+  - sha: fe33435bb547938b9981cc7037fae8f9651bb978
+    changeNotes: agree terms
   - sha: cff8c8f3e5021f2ed2a27007f6e66007e607ec12
     changeNotes: Fix tag name
   - sha: 193c6fa15ccc4869ce5a39f97ea83700262fc733
