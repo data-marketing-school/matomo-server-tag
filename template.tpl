@@ -707,8 +707,8 @@ ___TEMPLATE_PARAMETERS___
       },
       {
         "type": "CHECKBOX",
-        "name": "_pk_cart",
-        "checkboxText": "Do not use _pk_cart for cart management",
+        "name": "mtm_cart_155c56",
+        "checkboxText": "Do not use mtm_cart_155c56 for cart management",
         "simpleValueType": true,
         "help": "If you check this, you won\u0027t be able to map \u003cb\u003eadd_to_cart\u003c/b\u003e and \u003cb\u003eremove_from_cart\u003c/b\u003e events to matomo cart update feature.",
         "enablingConditions": [
@@ -845,7 +845,7 @@ const getCookieValues = require('getCookieValues');
 const getTimestampMillis = require('getTimestampMillis');
 const eventData = getAllEventData();
 const pkId = getCookieValues('_pk_id');
-const CART_KEY = "_pk_cart";
+const CART_KEY = "mtm_cart_155c56";
 
 let instanceUrl = data.instanceUrl + '/matomo.php';
 
@@ -1109,7 +1109,7 @@ function getEcommerceItems() {
   
   let items = null;
   
-  if((eventData.event_name == "add_to_cart" || eventData.event_name == "remove_from_cart") && !data._pk_cart) {
+  if((eventData.event_name == "add_to_cart" || eventData.event_name == "remove_from_cart") && !data.mtm_cart_155c56) {
     
     if(eventData.event_name == "add_to_cart" && eventData.items) {
       eventData.items.forEach(function(item) {
@@ -1327,7 +1327,7 @@ ___SERVER_PERMISSIONS___
               },
               {
                 "type": 1,
-                "string": "_pk_cart"
+                "string": "mtm_cart_155c56"
               }
             ]
           }
@@ -1425,7 +1425,7 @@ ___SERVER_PERMISSIONS___
                 "mapValue": [
                   {
                     "type": 1,
-                    "string": "_pk_cart"
+                    "string": "mtm_cart_155c56"
                   },
                   {
                     "type": 1,
