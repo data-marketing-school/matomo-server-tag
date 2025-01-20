@@ -1,6 +1,8 @@
 homepage: "https://data-marketing-school.com/en"
 documentation: "https://data-marketing-school.com/en/blog/google-tag-manager/matomo-server-side/"
 versions:
+  - sha: 28d43e98a12ea40ed5a70f7b193a7034be654fb1
+    changeNotes: Change cart cookie name
   - sha: cbee4192c12de817363bdd03583d8e8da9302abd
     changeNotes: Now supports add_to_cart and remove_from_cart GA4 events
   - sha: fe33435bb547938b9981cc7037fae8f9651bb978
