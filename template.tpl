@@ -10,9 +10,8 @@ ___INFO___
 
 {
   "type": "TAG",
-  "id": "cvt_temp_public_id",
+  "id": "cvt_55KDF",
   "version": 1,
-  "securityGroups": [],
   "displayName": "Matomo Analytics",
   "brand": {
     "id": "github.com_data-marketing-school",
@@ -22,7 +21,8 @@ ___INFO___
   "description": "Send data to Matomo from GA4 or Matomo client.",
   "containerContexts": [
     "SERVER"
-  ]
+  ],
+  "securityGroups": []
 }
 
 
@@ -835,6 +835,7 @@ const log = require("logToConsole");
 const Object = require("Object");
 const JSON = require("JSON");
 const getType = require("getType");
+const encodeUri = require("encodeUri");
 const encodeUriComponent = require("encodeUriComponent");
 const getAllEventData = require("getAllEventData");
 const sendHttpRequest = require("sendHttpRequest");
@@ -1132,19 +1133,19 @@ function getEcommerceItems() {
   let value = 0;
   
   items.forEach(function(item){
-    value += item.price * item.quantity;
+    value += (item.price || 0) * (item.quantity || 1);
   });
   
   items = items.map((item) => [
             item.item_id,
-            item.item_name,
-            item.item_category,
-            item.price,
-            item.quantity,
+            item.item_name || "",
+            item.item_category || "",
+            item.price || 0,
+            item.quantity || 1,
           ]);
   
       
-  return { items: JSON.stringify(items), value: value };
+  return { items: encodeUriComponent(JSON.stringify(items)), value: value };
   
 }
 
