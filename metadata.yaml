@@ -1,6 +1,8 @@
 homepage: "https://data-marketing-school.com/en"
 documentation: "https://data-marketing-school.com/en/blog/google-tag-manager/matomo-server-side/"
 versions:
+  - sha: 717c500942d4ffce816091faa5c3b3d9b29ca142
+    changeNotes: Fix ec_items when fields are undefined
   - sha: 28d43e98a12ea40ed5a70f7b193a7034be654fb1
     changeNotes: Change cart cookie name
   - sha: cbee4192c12de817363bdd03583d8e8da9302abd
