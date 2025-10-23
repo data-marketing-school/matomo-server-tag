@@ -1,6 +1,8 @@
 homepage: "https://data-marketing-school.com/en"
 documentation: "https://data-marketing-school.com/en/blog/google-tag-manager/matomo-server-side/"
 versions:
+  - sha: f8d6d451e02404e1d0956b44ace726a34ce2731f
+    changeNotes: Fix ec_items encoding
   - sha: 717c500942d4ffce816091faa5c3b3d9b29ca142
     changeNotes: Fix ec_items when fields are undefined
   - sha: 28d43e98a12ea40ed5a70f7b193a7034be654fb1
