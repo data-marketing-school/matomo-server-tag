@@ -1145,7 +1145,7 @@ function getEcommerceItems() {
           ]);
   
       
-  return { items: encodeUriComponent(JSON.stringify(items)), value: value };
+  return { items: JSON.stringify(items), value: value };
   
 }
 
