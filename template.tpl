@@ -63,7 +63,8 @@ ___TEMPLATE_PARAMETERS___
           "^https://.*"
         ]
       }
-    ]
+    ],
+    "help": "Base URL of your Matomo instance, with or without a trailing slash. /matomo.php is added automatically."
   },
   {
     "type": "TEXT",
@@ -425,7 +426,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Default: eventData.items"
+        "help": "Array of GA4 items, or a JSON string of one. Default: eventData.items"
       },
       {
         "type": "TEXT",
@@ -435,11 +436,16 @@ ___TEMPLATE_PARAMETERS___
         "enablingConditions": [
           {
             "paramName": "ecommerceEventType",
+            "paramValue": "cartUpdate",
+            "type": "EQUALS"
+          },
+          {
+            "paramName": "ecommerceEventType",
             "paramValue": "ecommerceOrder",
             "type": "EQUALS"
           }
         ],
-        "help": "Default: eventData.value"
+        "help": "Default: eventData.value for orders, sum of item price × quantity for cart updates"
       },
       {
         "type": "TEXT",
@@ -528,7 +534,7 @@ ___TEMPLATE_PARAMETERS___
             "type": "EQUALS"
           }
         ],
-        "help": "Default: null"
+        "help": "Default: none (ec_st is not sent)"
       },
       {
         "type": "TEXT",
@@ -699,18 +705,30 @@ ___TEMPLATE_PARAMETERS___
     "groupStyle": "ZIPPY_CLOSED",
     "subParams": [
       {
-        "type": "CHECKBOX",
+        "type": "SELECT",
         "name": "_pk_id",
-        "checkboxText": "Do not use _pk_id for browser ID",
+        "displayName": "Do not use _pk_id for browser ID",
+        "macrosInSelect": true,
         "simpleValueType": true,
-        "help": "If you check this, Matomo will only rely on fingerprinting to identify a browser."
+        "defaultValue": "false",
+        "selectItems": [
+          {
+            "value": "false",
+            "displayValue": "false"
+          },
+          {
+            "value": "true",
+            "displayValue": "true"
+          }
+        ],
+        "help": "<b>false</b>: use the _pk_id cookie (created if missing).<br><b>true</b>: no cookie and no visitor ID; Matomo relies on fingerprinting.<br><br>Can be a variable returning true/false (boolean or text), e.g. from the consent state. Any other value is treated as <b>true</b>, so an unclear consent state never sets a cookie."
       },
       {
         "type": "CHECKBOX",
         "name": "mtm_cart_155c56",
         "checkboxText": "Do not use mtm_cart_155c56 for cart management",
         "simpleValueType": true,
-        "help": "If you check this, you won\u0027t be able to map \u003cb\u003eadd_to_cart\u003c/b\u003e and \u003cb\u003eremove_from_cart\u003c/b\u003e events to matomo cart update feature.",
+        "help": "If you check this, you won't be able to map <b>add_to_cart</b> and <b>remove_from_cart</b> events to matomo cart update feature.",
         "enablingConditions": [
           {
             "paramName": "ecommerceEventType",
@@ -835,405 +853,454 @@ const log = require("logToConsole");
 const Object = require("Object");
 const JSON = require("JSON");
 const getType = require("getType");
-const encodeUri = require("encodeUri");
-const encodeUriComponent = require("encodeUriComponent");
+const makeNumber = require("makeNumber");
+const makeString = require("makeString");
 const getAllEventData = require("getAllEventData");
 const sendHttpRequest = require("sendHttpRequest");
 const generateRandom = require("generateRandom");
 const sha256Sync = require("sha256Sync");
 const setCookie = require("setCookie");
-const getCookieValues = require('getCookieValues');
-const getTimestampMillis = require('getTimestampMillis');
+const getCookieValues = require("getCookieValues");
+const getTimestampMillis = require("getTimestampMillis");
+
 const eventData = getAllEventData();
-const pkId = getCookieValues('_pk_id');
 const CART_KEY = "mtm_cart_155c56";
+const CART_MAX_AGE = 31536000; // 12 months, in seconds
+const VISITOR_MAX_AGE = 86400 * 400;
 
-let instanceUrl = data.instanceUrl + '/matomo.php';
+let body;
+const endpoint = getEndpoint(data.instanceUrl);
+// Build the payload defensively: a missing field (e.g. no items) must fail the tag, not crash it.
+if (getType(endpoint) !== "string") {
+  log("Matomo: invalid instance URL", data.instanceUrl);
+  data.gtmOnFailure();
+} else {
+  body = data.clientType == "matomoClient" ? getMatomoQueryParamsFromMtm() : getMatomoQueryParamsFromGa();
+  if (getType(body) !== "object") {
+    data.gtmOnFailure();
+  } else {
+    send(endpoint, body);
+  }
+}
 
-sendHttpRequest(data.clientType == "matomoClient" ? instanceUrl + getMatomoQueryParamsFromMtm() : instanceUrl + getMatomoQueryParamsFromGa(), {
-    method: "GET"
-  })
-  .then((response) => {
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+// token_auth goes in a POST body, never in the URL, so it stays out of access logs.
+function send(url, params) {
+  const requests = [params];
+  sendHttpRequest(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    timeout: 5000
+  }, JSON.stringify({ requests: requests, token_auth: data.tokenAuth }))
+    .then((response) => {
+      const result = getType(response.body) === "string" ? JSON.parse(response.body) : undefined;
+      const invalid = result && result.invalid ? makeNumber(result.invalid) : 0;
+      if (response.statusCode >= 200 && response.statusCode < 300 && !(invalid > 0)) {
         data.gtmOnSuccess();
       } else {
         data.gtmOnFailure();
       }
-  })
-  .catch(() => {
-     data.gtmOnFailure();
-  });
+    })
+    .catch((error) => {
+      log("Matomo request failed:", error);
+      data.gtmOnFailure();
+    });
+}
 
-function getMatomoQueryParamsFromMtm(){
-  var matomoQueryParams = eventData;
+function getEndpoint(instanceUrl) {
+  if (getType(instanceUrl) !== "string" || !instanceUrl) return undefined;
+  let url = instanceUrl;
+  while (url.length && url.charAt(url.length - 1) === "/") {
+    url = url.slice(0, url.length - 1);
+  }
+  return url + "/matomo.php";
+}
+
+function getMatomoQueryParamsFromMtm() {
+  const matomoQueryParams = eventData;
   matomoQueryParams.token_auth = data.tokenAuth;
-  if(data.idSiteMatomoClient) {
-    matomoQueryParams.idsite = data.idSiteMatomoClient || eventData.idsite;
+  if (data.idSiteMatomoClient) {
+    matomoQueryParams.idsite = data.idSiteMatomoClient;
   }
-  
-  if(data.parametersToExclude) {
-    data.parametersToExclude.forEach(parameterToExclude => {
-      if(matomoQueryParams[parameterToExclude.parameterName]) {
-        matomoQueryParams[parameterToExclude.parameterName] = null;
-      }
+
+  // Remove listed keys whatever their value (0 and "" included).
+  if (data.parametersToExclude) {
+    data.parametersToExclude.forEach((row) => {
+      matomoQueryParams[row.parameterName] = null;
     });
   }
-  
-  if(data.parametersToAddEdit) {
-    data.parametersToAddEdit.forEach(parameterToAddEdit => {
-      matomoQueryParams[parameterToAddEdit.parameterName] = parameterToAddEdit.parameterValue;
+  if (data.parametersToAddEdit) {
+    data.parametersToAddEdit.forEach((row) => {
+      matomoQueryParams[row.parameterName] = row.parameterValue;
     });
   }
-  
-  if(data.customDimensionsToExclude) {
-    data.customDimensionsToExclude.forEach(customDimensionToExclude => {
-      if(matomoQueryParams["dimension" + customDimensionToExclude.customDimensionId]) {
-        matomoQueryParams["dimension" + customDimensionToExclude.customDimensionId] = null;
-      }
+  if (data.customDimensionsToExclude) {
+    data.customDimensionsToExclude.forEach((row) => {
+      matomoQueryParams["dimension" + row.customDimensionId] = null;
     });
   }
-  
-  if(data.customDimensionsToAddEdit) {
-    data.customDimensionsToAddEdit.forEach(customDimensionToAddEdit => {
-      matomoQueryParams["dimension" + customDimensionToAddEdit.customDimensionId] = customDimensionToAddEdit.customDimensionValue;
+  if (data.customDimensionsToAddEdit) {
+    data.customDimensionsToAddEdit.forEach((row) => {
+      matomoQueryParams["dimension" + row.customDimensionId] = row.customDimensionValue;
     });
   }
-  
-  
+
   matomoQueryParams.event_name = null;
-  return serialize(matomoQueryParams);
+  return toParams(matomoQueryParams);
 }
 
 function getMatomoQueryParamsFromGa() {
+  // Compute once so _id, cid and the _pk_id cookie always agree.
+  const visitorId = getVisitorId();
+
   let matomoQueryParams = {
-		//Required parameters
-		idsite: data.idSiteGa4Client,
-		rec: eventData.rec || 1,
+    //Required parameters
+    idsite: data.idSiteGa4Client,
+    rec: eventData.rec || 1,
 
-		//Recommended parameters
-        action_name: eventData.page_title || eventData.action_name,
-		url: eventData.page_location || eventData.url,
-		_id: eventData._id || generateVisitorId(),
-		rand: eventData.rand || generateRandom(0, 100000000),
-		apiv: 1,
+    //Recommended parameters
+    action_name: eventData.page_title || eventData.action_name,
+    url: eventData.page_location || eventData.url,
+    _id: eventData._id || visitorId,
+    rand: eventData.rand || generateRandom(0, 100000000),
+    apiv: 1,
 
-		//Optional user info
-		urlref: eventData.page_referrer || eventData.urlref,
-		res: eventData.screen_resolution || eventData.res,
-		h: eventData.h || null,
-		m: eventData.m || null,
-		s: eventData.s || null,
-		cookie: 1,
-		ua: eventData.ua || eventData.user_agent,
-		uadata: JSON.stringify(eventData.uadata || eventData.client_hints),
-		lang: eventData.lang || eventData.language,
-		uid: eventData.uid || eventData.user_id,
-		cid: eventData.cid || generateVisitorId(),
-		new_visit: eventData.new_visit || 0,
-    
-        //Ecommerce
-        idgoal: eventData.idgoal,
-        ec_items: eventData.ec_items,
-        revenue: eventData.revenue,
-        ec_id: eventData.ec_id,
-        ec_st: eventData.ec_st,
-        ec_tx: eventData.ec_tx,
-        ec_sh: eventData.ec_sh,
-        ec_dt: eventData.ec_dt,
+    //Optional user info
+    urlref: eventData.page_referrer || eventData.urlref,
+    res: eventData.screen_resolution || eventData.res,
+    h: eventData.h || null,
+    m: eventData.m || null,
+    s: eventData.s || null,
+    cookie: 1,
+    ua: eventData.ua || eventData.user_agent,
+    uadata: getUaData(),
+    lang: eventData.lang || eventData.language,
+    uid: eventData.uid || eventData.user_id,
+    cid: eventData.cid || visitorId,
+    new_visit: eventData.new_visit || 0,
 
-		//Optional Acquisition Channel Attribution
-		_rcn: eventData._rcn,
-		_rck: eventData._rck,
+    //Ecommerce
+    idgoal: eventData.idgoal,
+    ec_items: eventData.ec_items,
+    revenue: eventData.revenue,
+    ec_id: eventData.ec_id,
+    ec_st: eventData.ec_st,
+    ec_tx: eventData.ec_tx,
+    ec_sh: eventData.ec_sh,
+    ec_dt: eventData.ec_dt,
 
-		//Optional action info
-		cvar: eventData.cvar,
-		link: eventData.link,
-		download: eventData.download,
-		pv_id: eventData.pv_id,
-		cs: eventData.cs,
-        search: eventData.search,
-	    search_cat: eventData.search_cat,
-	    search_count: eventData.search_count,
+    //Optional Acquisition Channel Attribution
+    _rcn: eventData._rcn,
+    _rck: eventData._rck,
 
-		//Optional page performance
-		pf_net: eventData.pf_net,
-		pf_srv: eventData.pf_srv,
-		pf_tfr: eventData.pf_tfr,
-		pf_dm1: eventData.pf_dm1,
-		pf_dm2: eventData.pf_dm2,
-		pf_onl: eventData.pf_onl,
+    //Optional action info
+    cvar: eventData.cvar,
+    link: eventData.link,
+    download: eventData.download,
+    pv_id: eventData.pv_id,
+    cs: eventData.cs,
+    search: eventData.search,
+    search_cat: eventData.search_cat,
+    search_count: eventData.search_count,
 
+    //Optional page performance
+    pf_net: eventData.pf_net,
+    pf_srv: eventData.pf_srv,
+    pf_tfr: eventData.pf_tfr,
+    pf_dm1: eventData.pf_dm1,
+    pf_dm2: eventData.pf_dm2,
+    pf_onl: eventData.pf_onl,
 
-		//Other parameters
-		token_auth: data.tokenAuth,
-		cip: eventData.cip || eventData.ip_override,
-		cdt: null,
-		country: null,
-		region: null,
-		city: null,
-		lat: null,
-		long: null,
-        send_image: eventData.send_image || 0,
-    
-        // plugins
-        pdf: eventData.pdf,
-        qt: eventData.qt,
-        realp: eventData.realp,
-        wma: eventData.wma,
-        fla: eventData.fla,
-        java: eventData.java,
-        ag: eventData.ag,
+    //Other parameters
+    token_auth: data.tokenAuth,
+    cip: eventData.cip || eventData.ip_override,
+    cdt: null,
+    country: null,
+    region: null,
+    city: null,
+    lat: null,
+    long: null,
+    send_image: eventData.send_image || 0,
 
-		//Media Analytics parameters
-		ma_id: eventData.ma_id, 
-		ma_ti: eventData.ma_ti,
-		ma_re: eventData.ma_re,
-		ma_mt: eventData.ma_mt,
-		ma_pn: eventData.ma_pn,
-		ma_st: eventData.ma_st,
-		ma_le: eventData.ma_le,
-		ma_ps: eventData.ma_ps,
-		ma_ttp: eventData.ma_ttp,
-		ma_w: eventData.ma_w,
-		ma_h: eventData.ma_h,
-		ma_fs: eventData.ma_fs,
-		ma_se: eventData.ma_se,
+    // plugins
+    pdf: eventData.pdf,
+    qt: eventData.qt,
+    realp: eventData.realp,
+    wma: eventData.wma,
+    fla: eventData.fla,
+    java: eventData.java,
+    ag: eventData.ag,
 
-	};
-  
-   if(data.eventType == "actions") {
-    
-    if(data.action == "event"){
+    //Media Analytics parameters
+    ma_id: eventData.ma_id,
+    ma_ti: eventData.ma_ti,
+    ma_re: eventData.ma_re,
+    ma_mt: eventData.ma_mt,
+    ma_pn: eventData.ma_pn,
+    ma_st: eventData.ma_st,
+    ma_le: eventData.ma_le,
+    ma_ps: eventData.ma_ps,
+    ma_ttp: eventData.ma_ttp,
+    ma_w: eventData.ma_w,
+    ma_h: eventData.ma_h,
+    ma_fs: eventData.ma_fs,
+    ma_se: eventData.ma_se,
+  };
+
+  if (data.eventType == "actions") {
+    if (data.action == "event") {
       matomoQueryParams.e_c = data.eventCategory;
-	  matomoQueryParams.e_a = data.eventAction;
-	  matomoQueryParams.e_n = data.eventName;
-	  matomoQueryParams.e_v = data.eventValue;
-    } else if(data.action == "goal") {
+      matomoQueryParams.e_a = data.eventAction;
+      matomoQueryParams.e_n = data.eventName;
+      matomoQueryParams.e_v = data.eventValue;
+    } else if (data.action == "goal") {
       matomoQueryParams.idgoal = data.goalId;
       matomoQueryParams.revenue = data.goalRevenue;
-    } else if(data.action == "link") {
+    } else if (data.action == "link") {
       matomoQueryParams[data.linkType] = data.linkUrl;
-    } else if(data.action == "siteSearch") {
+    } else if (data.action == "siteSearch") {
       matomoQueryParams.action_name = null;
       matomoQueryParams.search = data.searchKeyword || eventData.search_term;
-	  matomoQueryParams.search_cat = data.searchCategory;
-	  matomoQueryParams.search_count = data.searchResults;
+      matomoQueryParams.search_cat = data.searchCategory;
+      matomoQueryParams.search_count = data.searchResults;
     }
   }
-  
-  if(data.eventType == "ecommerceTracking") {
-    
-    if(data.ecommerceEventType == "productView") {
-      matomoQueryParams._pkc = data.category || eventData.items[0].item_category;
-      matomoQueryParams._pkp = data.value || eventData.items[0].price;
-      matomoQueryParams._pks = data.product_sku || eventData.items[0].item_id;
-      matomoQueryParams._pkn = data.product_name || eventData.items[0].item_name;
-       
-    } else if(data.ecommerceEventType == "categoryView") {
-      
-      matomoQueryParams._pkc = data.category || eventData.items[0].item_category;
 
-    } else if(data.ecommerceEventType == "cartUpdate" && eventData.items) {
-      
-      let items = getEcommerceItems();
-      
+  if (data.eventType == "ecommerceTracking") {
+    const firstItem = getFirstItem();
+
+    if (data.ecommerceEventType == "productView") {
+      matomoQueryParams._pkc = data.category || firstItem.item_category;
+      matomoQueryParams._pkp = data.product_price || firstItem.price;
+      matomoQueryParams._pks = data.product_sku || firstItem.item_id;
+      matomoQueryParams._pkn = data.product_name || firstItem.item_name;
+    } else if (data.ecommerceEventType == "categoryView") {
+      matomoQueryParams._pkc = data.category || firstItem.item_category;
+    } else if (data.ecommerceEventType == "cartUpdate") {
+      const cart = getEcommerceItems(true);
+      if (!cart) {
+        log("Matomo: cart update without items, tag not sent.");
+        return undefined;
+      }
       matomoQueryParams.idgoal = 0;
-      matomoQueryParams.ec_items = items.items;
-	  matomoQueryParams.revenue = data.value || items.value;
-    
-    } else if(data.ecommerceEventType == "ecommerceOrder") {
-      
+      matomoQueryParams.ec_items = cart.items;
+      matomoQueryParams.revenue = data.value || cart.value;
+    } else if (data.ecommerceEventType == "ecommerceOrder") {
+      // Matomo needs ec_id to record and de-duplicate an order; ec_items is optional.
+      const orderId = data.order_id || eventData.transaction_id;
+      if (!orderId) {
+        log("Matomo: order without order ID (order_id / transaction_id), tag not sent.");
+        return undefined;
+      }
+      const order = getEcommerceItems(false);
       matomoQueryParams.idgoal = 0;
-      matomoQueryParams.ec_id = data.order_id || eventData.transaction_id;
-      matomoQueryParams.ec_items = getEcommerceItems().items;
-	  matomoQueryParams.revenue = data.value || eventData.value;
-      matomoQueryParams.ec_st = data.subtotal;
-	  matomoQueryParams.ec_tx = data.tax || eventData.tax;
-	  matomoQueryParams.ec_sh = data.shipping || eventData.shipping;
-	  matomoQueryParams.ec_dt = data.discount || eventData.discount;
-      
-      removeCart();
-      
+      matomoQueryParams.ec_id = orderId;
+      matomoQueryParams.ec_items = order ? order.items : null;
+      matomoQueryParams.revenue = data.value || eventData.value || (order ? order.value : null);
+      matomoQueryParams.ec_st = data.sub_total;
+      matomoQueryParams.ec_tx = data.tax || eventData.tax;
+      matomoQueryParams.ec_sh = data.shipping || eventData.shipping;
+      matomoQueryParams.ec_dt = data.discount || eventData.discount;
+
+      if (!data.mtm_cart_155c56) removeCart();
     }
   }
-  
-  if(data.eventType == "contentTracking") {
-   
-		matomoQueryParams.c_n = data.contentName;
-		matomoQueryParams.c_p = data.contentPiece;
-		matomoQueryParams.c_t = data.contentTarget;
-    
-    if(data.contentTrackingType == "contentInteraction") {
-		matomoQueryParams.c_i = data.contentInteraction;
-    
+
+  if (data.eventType == "contentTracking") {
+    matomoQueryParams.c_n = data.contentName;
+    matomoQueryParams.c_p = data.contentPiece;
+    matomoQueryParams.c_t = data.contentTarget;
+    if (data.contentTrackingType == "contentInteraction") {
+      matomoQueryParams.c_i = data.contentInteraction;
     }
-  
   }
-  
-  if(getType(data.cdTable) != 'undefined') {
+
+  if (getType(data.cdTable) == "array") {
     data.cdTable.forEach((cd) => {
-      matomoQueryParams['dimension'+cd.customDimensionId] = cd.customDimensionValue;
-    });  
-  
+      matomoQueryParams["dimension" + cd.customDimensionId] = cd.customDimensionValue;
+    });
   }
-  
-  if(data.eventType == "heartbeat") {
+
+  if (data.eventType == "heartbeat") {
     matomoQueryParams.ping = 1;
     matomoQueryParams.action_name = null;
   }
 
-  return serialize(matomoQueryParams);
+  return toParams(matomoQueryParams);
 }
 
-function generateVisitorId() {
-  
-  if(data._pk_id) return null;
-  
-  let clientId = '';
-  if (!pkId || !pkId[0]) {
-    clientId = sha256Sync(generateRandom(0, 10000000) + '|' + getTimestampMillis(), {outputEncoding: 'hex'}).slice(0, 16);
-    const options = {
-      domain: 'auto',
-      path: '/',
-      secure: true,
-      httpOnly: true,
-      'max-age': 86400 * 400
-    };
-    setCookie('_pk_id', clientId, options, false);
-  } else {
-    clientId = pkId[0];
+// "Do not use _pk_id" (_pk_id), can come from a variable such as the consent state:
+//   false -> read/create the _pk_id cookie
+//   true  -> no cookie and no visitor ID (Matomo fingerprinting)
+// Booleans and "true"/"false" strings are accepted; anything else counts as true,
+// so an unclear consent state never sets a cookie.
+function isCookieAllowed() {
+  const value = data._pk_id;
+  if (value === false || value === "false") return true;
+  if (value !== true && value !== "true") {
+    log("Matomo: unexpected _pk_id value", value, "- treated as true (no cookie).");
   }
-  return clientId;
+  return false;
 }
 
-function getEcommerceItems() {
-  
-  let items = null;
-  
-  if((eventData.event_name == "add_to_cart" || eventData.event_name == "remove_from_cart") && !data.mtm_cart_155c56) {
-    
-    if(eventData.event_name == "add_to_cart" && eventData.items) {
-      eventData.items.forEach(function(item) {
-        items = addProductToCart(item);
-      });
-    } else if(eventData.event_name == "remove_from_cart" && eventData.items) {
-      eventData.items.forEach(function(item) {
-        items = removeProductFromCart(item);
-      });
-    }
-    
-  } else {
-    
-    if(eventData.items) {
-      items = eventData.items;
-    }
-  
-  }
-  
-  let value = 0;
-  
-  items.forEach(function(item){
-    value += (item.price || 0) * (item.quantity || 1);
-  });
-  
-  items = items.map((item) => [
-            item.item_id,
-            item.item_name || "",
-            item.item_category || "",
-            item.price || 0,
-            item.quantity || 1,
-          ]);
-  
-      
-  return { items: JSON.stringify(items), value: value };
-  
+function getVisitorId() {
+  // No visitor ID: Matomo falls back to its fingerprint.
+  if (!isCookieAllowed()) return null;
+
+  const pkId = getCookieValues("_pk_id");
+  const visitorId = pkId && pkId[0]
+    ? pkId[0]
+    : sha256Sync(generateRandom(0, 10000000) + "|" + getTimestampMillis(), { outputEncoding: "hex" }).slice(0, 16);
+  setCookie("_pk_id", visitorId, {
+    domain: "auto",
+    path: "/",
+    secure: true,
+    httpOnly: true,
+    "max-age": VISITOR_MAX_AGE
+  }, false);
+  return visitorId;
 }
 
-
-function serialize( obj ) {
-    let str = '?' + Object.keys(obj)
-    .reduce(function(a, k){
-        if(getType(obj[k]) != 'null' && getType(obj[k]) != 'undefined') {
-          a.push(k + '=' + encodeUriComponent(obj[k]));          
-        }
-        return a;
-    }, []).join('&');
-    return str;
+// Items from the "Items" field (array or JSON string), else from the event.
+function getSourceItems() {
+  let items = data.items;
+  if (getType(items) == "string") {
+    items = JSON.parse(items);
+  }
+  if (getType(items) != "array") {
+    items = eventData.items;
+  }
+  return getType(items) == "array" ? items : [];
 }
 
-function addProductToCart(productToAdd) {
-  
-  let cart = getCart();
-  
-  let existingProduct;
-
-  for (var i = 0; i < cart.length; i++) {
-    if (cart[i].item_id === productToAdd.item_id) {
-      existingProduct = cart[i];
-      break;
-    }  
-  }
-    
-  if (existingProduct) {
-    
-    existingProduct.quantity += productToAdd.quantity || 1;
-    
-  } else {
-    
-    cart.push(productToAdd);
-    
-  }
-  
-  saveCart(cart);
-  
-  return cart;
-  
+function getFirstItem() {
+  const items = getSourceItems();
+  return items.length && items[0] ? items[0] : {};
 }
 
-function removeProductFromCart(productToRemove) {
-   
-  let productIndex = -1;
-  let cart = getCart();
+function toQuantity(value) {
+  const q = makeNumber(value);
+  return q && q > 0 ? q : 1;
+}
 
-  for (var i = 0; i < cart.length; i++) {
-    if (cart[i].item_id === productToRemove.item_id) {
-      productIndex = i;
-      break;
-    }
-  }
-  
-  if (productIndex !== -1) {
-    
-    let product = cart[productIndex];
-    
-    if ((product.quantity - productToRemove.quantity) > 0) {
-      
-      product.quantity = product.quantity - productToRemove.quantity;
-      
-    } else {
-      
-      cart.splice(productIndex, 1);
-      
-    }
-    
+function toPrice(value) {
+  const p = makeNumber(value);
+  return p ? p : 0;
+}
+
+// useCart: maintain the server-side cart cookie from add_to_cart / remove_from_cart.
+function getEcommerceItems(useCart) {
+  let items = getSourceItems();
+
+  const cartEvent = eventData.event_name == "add_to_cart" || eventData.event_name == "remove_from_cart";
+  if (useCart && cartEvent && !data.mtm_cart_155c56) {
+    let cart = getCart();
+    items.forEach((item) => {
+      cart = eventData.event_name == "add_to_cart" ? addProductToCart(cart, item) : removeProductFromCart(cart, item);
+    });
     saveCart(cart);
-      
+    items = cart;
+  } else if (!items.length) {
+    return undefined;
   }
-  
-  return cart;
 
+  let value = 0;
+  const rows = items.map((item) => {
+    const price = toPrice(item.price);
+    const quantity = toQuantity(item.quantity);
+    value += price * quantity;
+    return [item.item_id, item.item_name || "", item.item_category || "", price, quantity];
+  });
+
+  return { items: JSON.stringify(rows), value: value };
+}
+
+function getUaData() {
+  const hints = eventData.uadata || eventData.client_hints;
+  if (getType(hints) != "object") return hints || null;
+  const uadata = {};
+  Object.keys(hints).forEach((k) => {
+    if (k === "platform_version") {
+      uadata.platformVersion = hints[k];
+    } else if (k === "full_version_list") {
+      uadata.fullVersionList = hints[k];
+    } else {
+      uadata[k] = hints[k];
+    }
+  });
+  return JSON.stringify(uadata);
+}
+
+function toParams(obj) {
+  const params = {};
+  Object.keys(obj).forEach((k) => {
+    const value = obj[k];
+    const type = getType(value);
+    if (k === "token_auth" || type == "null" || type == "undefined") return;
+    if (type == "number" || type == "string") {
+      params[k] = value;
+    } else if (type == "object" || type == "array") {
+      params[k] = JSON.stringify(value);
+    } else {
+      params[k] = makeString(value);
+    }
+  });
+  return params;
+}
+
+// Store only the fields Matomo needs, to stay well under the 4 KB cookie limit.
+function slimItem(item, quantity) {
+  return {
+    item_id: item.item_id,
+    item_name: item.item_name,
+    item_category: item.item_category,
+    price: toPrice(item.price),
+    quantity: quantity
+  };
+}
+
+function findIndex(cart, itemId) {
+  for (let i = 0; i < cart.length; i++) {
+    if (cart[i].item_id === itemId) return i;
+  }
+  return -1;
+}
+
+function addProductToCart(cart, productToAdd) {
+  const index = findIndex(cart, productToAdd.item_id);
+  const quantity = toQuantity(productToAdd.quantity);
+  if (index !== -1) {
+    cart[index].quantity = toQuantity(cart[index].quantity) + quantity;
+  } else {
+    cart.push(slimItem(productToAdd, quantity));
+  }
+  return cart;
+}
+
+function removeProductFromCart(cart, productToRemove) {
+  const index = findIndex(cart, productToRemove.item_id);
+  if (index === -1) return cart;
+  const remaining = toQuantity(cart[index].quantity) - toQuantity(productToRemove.quantity);
+  if (remaining > 0) {
+    cart[index].quantity = remaining;
+  } else {
+    cart.splice(index, 1);
+  }
+  return cart;
 }
 
 function getCart() {
-  return getCookieValues(CART_KEY)[0] ? JSON.parse(getCookieValues(CART_KEY)[0]) : [];
+  const raw = getCookieValues(CART_KEY)[0];
+  if (!raw) return [];
+  const cart = JSON.parse(raw);
+  return getType(cart) == "array" ? cart : [];
 }
 
 function saveCart(cart) {
-  setCookie(CART_KEY, JSON.stringify(cart), { domain: 'auto', 'max-age': 31557600000, httpOnly: true }); // 12 months
+  setCookie(CART_KEY, JSON.stringify(cart), { domain: "auto", path: "/", secure: true, httpOnly: true, "max-age": CART_MAX_AGE });
 }
 
 function removeCart() {
-  setCookie(CART_KEY, "[]", { 'max-age': 0, domain: 'auto', httpOnly: true });
+  setCookie(CART_KEY, "[]", { domain: "auto", path: "/", secure: true, httpOnly: true, "max-age": 0 });
 }
 
 
@@ -1461,11 +1528,134 @@ ___SERVER_PERMISSIONS___
 
 ___TESTS___
 
-scenarios: []
+scenarios:
+- name: Pageview is sent as POST without token in the URL
+  code: |-
+    runCode(baseData);
+    assertThat(sent.url).isEqualTo('https://example.matomo.cloud/matomo.php');
+    assertThat(sent.options.method).isEqualTo('POST');
+    assertThat(sent.options.headers['Content-Type']).isEqualTo('application/json');
+    assertThat(sent.json.token_auth).isEqualTo('secret');
+    assertThat(sent.json.requests.length).isEqualTo(1);
+    assertThat(param('token_auth')).isUndefined();
+    assertThat(param('idsite')).isEqualTo('1');
+    assertThat(param('action_name')).isEqualTo('Home');
+    assertThat(param('url')).isEqualTo('https://shop.test/');
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Product view without items does not crash
+  code: |-
+    eventData = {event_name: 'view_item', page_location: 'https://shop.test/p'};
+    mock('getAllEventData', () => eventData);
+    const d = {clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'ecommerceTracking', ecommerceEventType: 'productView'};
+    runCode(d);
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Order without items is sent without ec_items
+  code: |-
+    eventData = {event_name: 'purchase', transaction_id: 'T1', value: 42};
+    mock('getAllEventData', () => eventData);
+    const d = {clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'ecommerceTracking', ecommerceEventType: 'ecommerceOrder'};
+    runCode(d);
+    assertThat(param('ec_id')).isEqualTo('T1');
+    assertThat(param('revenue')).isEqualTo(42);
+    assertThat(param('ec_items')).isUndefined();
+    assertApi('gtmOnSuccess').wasCalled();
+- name: Order without order ID fails cleanly
+  code: |-
+    eventData = {event_name: 'purchase', value: 42, items: [{item_id: 'A', price: 42}]};
+    mock('getAllEventData', () => eventData);
+    const d = {clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'ecommerceTracking', ecommerceEventType: 'ecommerceOrder'};
+    runCode(d);
+    assertApi('gtmOnFailure').wasCalled();
+    assertApi('sendHttpRequest').wasNotCalled();
+- name: Order sends subtotal and defaults missing quantity to 1
+  code: |-
+    eventData = {event_name: 'purchase', transaction_id: 'T1', value: 30,
+      items: [{item_id: 'A', item_name: 'Alpha', price: 10}, {item_id: 'B', price: 20, quantity: 1}]};
+    mock('getAllEventData', () => eventData);
+    const d = {clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud/', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'ecommerceTracking', ecommerceEventType: 'ecommerceOrder', sub_total: '25'};
+    runCode(d);
+    assertThat(sent.url).isEqualTo('https://example.matomo.cloud/matomo.php');
+    assertThat(param('ec_st')).isEqualTo('25');
+    assertThat(param('ec_items').indexOf('["A","Alpha","",10,1]') > -1).isTrue();
+    assertApi('gtmOnSuccess').wasCalled();
+- name: New visitor gets the same id in _id and cid
+  code: |-
+    runCode(baseData);
+    const id = param('_id');
+    const cid = param('cid');
+    assertThat(id).isDefined();
+    assertThat(id).isEqualTo(cid);
+- name: Bulk response with an invalid hit fails the tag
+  code: |-
+    mock('sendHttpRequest', (url, options, body) => {
+      return Promise.create((resolve) => resolve({statusCode: 200, body: '{"status":"success","tracked":0,"invalid":1}'}));
+    });
+    runCode(baseData);
+    assertApi('gtmOnFailure').wasCalled();
+    assertApi('gtmOnSuccess').wasNotCalled();
+- name: GA4 client hints are sent with Matomo's camelCase keys
+  code: |-
+    eventData = {event_name: 'page_view', page_location: 'https://shop.test/', client_hints: {
+      architecture: 'arm', bitness: '64', model: '', mobile: false, platform: 'macOS', platform_version: '27.2.1', wow64: false,
+      full_version_list: [{brand: 'Chromium', version: '157.0.8103.79'}, {brand: 'Not-A.Brand', version: '99.0.0.0'}],
+      brands: [{brand: 'Chromium', version: '157'}, {brand: 'Not-A.Brand', version: '99'}]}};
+    mock('getAllEventData', () => eventData);
+    runCode(baseData);
+    const uadata = JSON.parse(param('uadata'));
+    assertThat(uadata.platformVersion).isEqualTo('27.2.1');
+    assertThat(uadata.fullVersionList[0].version).isEqualTo('157.0.8103.79');
+    assertThat(uadata.platform).isEqualTo('macOS');
+    assertThat(uadata.platform_version).isUndefined();
+    assertThat(uadata.full_version_list).isUndefined();
+- name: Returning visitor keeps the same id and the cookie is renewed
+  code: |-
+    mock('getCookieValues', (name) => name === '_pk_id' ? ['abcdef0123456789'] : []);
+    runCode(baseData);
+    assertThat(param('_id')).isEqualTo('abcdef0123456789');
+    assertThat(param('cid')).isEqualTo('abcdef0123456789');
+    assertThat(cookieSet._pk_id).isEqualTo('abcdef0123456789');
+- name: Unexpected _pk_id value sends no visitor ID and sets no cookie
+  code: |-
+    runCode({clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'pageview', _pk_id: 'maybe'});
+    assertThat(param('_id')).isUndefined();
+    assertThat(param('cid')).isUndefined();
+    assertApi('setCookie').wasNotCalled();
+- name: Do not use _pk_id = true sends no visitor ID and sets no cookie
+  code: |-
+    eventData = visitor;
+    mock('getAllEventData', () => eventData);
+    runCode({clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+      idSiteGa4Client: '1', eventType: 'pageview', _pk_id: true});
+    assertThat(param('_id')).isUndefined();
+    assertApi('setCookie').wasNotCalled();
+setup: |-
+  const Promise = require('Promise');
+  const JSON = require('JSON');
+  let sent = {};
+  let eventData = {event_name: 'page_view', page_location: 'https://shop.test/', page_title: 'Home'};
+  const baseData = {clientType: 'ga4Client', instanceUrl: 'https://example.matomo.cloud', tokenAuth: 'secret',
+    idSiteGa4Client: '1', eventType: 'pageview', _pk_id: 'false'};
+  let cookieSet = {};
+  mock('getAllEventData', () => eventData);
+  mock('getCookieValues', () => []);
+  mock('setCookie', (name, value) => { cookieSet[name] = value; });
+  const param = (name) => sent.params[name];
+  const visitor = {event_name: 'page_view', page_location: 'https://shop.test/', ip_override: '203.0.113.7', user_agent: 'UA/1.0'};
+  mock('sendHttpRequest', (url, options, body) => {
+    const json = JSON.parse(body);
+    sent = {url: url, options: options, body: body, json: json, params: json.requests[0]};
+    return Promise.create((resolve) => resolve({statusCode: 200, body: '{"status":"success","tracked":1,"invalid":0}'}));
+  });
 
 
 ___NOTES___
 
 Created on 20/05/2024, 16:34:06
+Updated on 12/11/2026: POST with token in body, fixed subtotal/product price/items fields, single visitor ID, crash guards on missing items, cart cookie lifetime and size. Orders without items are sent without ec_items; only orders without an order ID are rejected. "Do not use _pk_id" is now a true/false dropdown that accepts variables.
 
 
